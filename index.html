@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Fetcher</title>
+    <style>
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Image Fetcher</h1>
+    <button id="fetchImage">Fetch Image</button>
+    <div id="imageContainer"></div>
+
+    <script src="config.js"></script>
+    <script>
+        document.getElementById('fetchImage').addEventListener('click', function() {
+            const targetUrl = `https://api.cloudflare.com/client/v4/accounts/${config.account_id}/ai/run/@cf/bytedance/stable-diffusion-xl-lightning`;
+            const headers = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${config.api_token}`
+            };
+            const prompt = 'We are at cloudfare hackathon';
+
+            // Show loading state
+            document.getElementById('imageContainer').innerHTML = 'Generating image...';
+
+            fetch(targetUrl, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({
+                    prompt: prompt
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('API Response:', data);
+                if (data.result && data.result.images) {
+                    const base64Image = data.result.images[0];
+                    const imageUrl = `data:image/png;base64,${base64Image}`;
+                    document.getElementById('imageContainer').innerHTML = `<img src="${imageUrl}" alt="Generated Image">`;
+                } else {
+                    throw new Error('No image in response');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('imageContainer').innerHTML = `<p>Error: ${error.message}</p>`;
+            });
+        });
+    </script>
+</body>
+</html>
