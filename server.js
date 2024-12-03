@@ -2,8 +2,13 @@ const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
 const path = require('path');
-// Fix config import
-const config = global.config || require('./config.js');
+const config = require('./config.js');
+
+// Verify config is loaded correctly
+console.log('Config loaded:', {
+    accountId: config.account_id,
+    hasToken: !!config.api_token
+});
 
 const app = express();
 app.use(cors());
@@ -16,33 +21,41 @@ app.get('/health', (req, res) => {
 });
 
 app.post('/generate-image', async (req, res) => {
-    console.log('Received request for image generation');
-    const account_id = "//";
-    const api_token = "//";
-    const targetUrl = `https://api.cloudflare.com/client/v4/accounts/${account_id}/ai/run/@cf/bytedance/stable-diffusion-xl-lightning`;
-    
     try {
-        console.log('Sending request to Cloudflare...');
-        const response = await fetch(targetUrl, {
+        const { prompt } = req.body;
+        if (!prompt) {
+            return res.status(400).json({ error: 'Prompt is required' });
+        }
+
+        console.log('Making request with prompt:', prompt);
+
+        const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${config.account_id}/ai/run/@cf/bytedance/stable-diffusion-xl-lightning`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${api_token}`
+                'Authorization': `Bearer ${config.api_token}`,
+                'Content-Type': 'application/json'
             },
-            body: JSON.stringify(req.body)
+            body: JSON.stringify({
+                prompt: prompt
+            })
         });
-        
+
         if (!response.ok) {
-            throw new Error(`Cloudflare API responded with status: ${response.status}`);
+            const errorText = await response.text();
+            console.error('Cloudflare API Error:', errorText);
+            throw new Error(`Cloudflare API error: ${response.status}`);
         }
+
+        // Get the response as a buffer directly
+        const imageBuffer = await response.buffer();
         
-        const data = await response.blob();
-        const buffer = await data.arrayBuffer();
+        // Set correct content type and send buffer
+        res.set('Content-Type', 'image/png');
+        res.send(imageBuffer);
         
-        res.send(Buffer.from(buffer));
     } catch (error) {
         console.error('Error:', error);
-        res.status(500).json({ error: 'Failed to generate image' });
+        res.status(500).json({ error: error.message });
     }
 });
 
